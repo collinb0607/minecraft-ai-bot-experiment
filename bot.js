@@ -2,6 +2,8 @@ const mineflayer = require('mineflayer')
 const { pathfinder, goals } = require('mineflayer-pathfinder')
 const collectBlock = require('mineflayer-collectblock').plugin
 
+const loadSkills = require('./lib/loader')
+
 const GOAL = "Survive in Minecraft. Start by gathering wood, then craft wood planks, a crafting table, and some wooden tools."
 
 const bot = mineflayer.createBot({
@@ -13,6 +15,11 @@ const bot = mineflayer.createBot({
 bot.on('spawn', () => {
     bot.loadPlugin(pathfinder)
     bot.loadPlugin(collectBlock)
+    bot.skills = {}
+
+    for (const [name, fn] of Object.entries(skills)) {
+    bot.skills[name] = (...args) => fn(bot, ...args)
+    }
     console.log('Steve_Bot has joined the server!')
 })
 
