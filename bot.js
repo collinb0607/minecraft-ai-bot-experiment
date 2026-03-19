@@ -1,11 +1,12 @@
 const mineflayer = require('mineflayer')
 const { pathfinder, goals } = require('mineflayer-pathfinder')
 const collectBlock = require('mineflayer-collectblock').plugin
+const fs = require('fs')
 
 const loadSkills = require('./lib/loader')
+const skills = loadSkills(__dirname + '/skills')
 
-const GOAL = "Survive in Minecraft. Start by gathering wood, then craft wood planks, a crafting table, and some wooden tools."
-
+console.log(Date.now() + ': Starting Steve_Bot...')
 const bot = mineflayer.createBot({
   host: '67.84.155.12', // or your server IP
   port: 25566,
@@ -13,17 +14,22 @@ const bot = mineflayer.createBot({
 })
 
 bot.on('spawn', () => {
+    console.log(Date.now() + ': Loading plugins...')
     bot.loadPlugin(pathfinder)
     bot.loadPlugin(collectBlock)
+    
+    console.log(Date.now() + ': Registering skills...')
     bot.skills = {}
-
     for (const [name, fn] of Object.entries(skills)) {
     bot.skills[name] = (...args) => fn(bot, ...args)
     }
-    console.log('Steve_Bot has joined the server!')
+
+    console.log(Date.now() + ': Initializing memory...')
+    fs.writeFileSync('shortTermMemory.txt', '')
+    console.log(Date.now() + ': Steve_Bot has joined the server!')
 })
 
-let automationEnabled = false
+let automationEnabled = true
 let memory = []
 
 function addMemory(event) {
@@ -50,6 +56,11 @@ function parseAction(text) {
     return match ? match[1] : null
 }
 
+function getPersonality() {
+    const personality = fs.readFileSync('personality.txt', 'utf8')
+    return personality
+}
+
 async function getEnvironment() {
     const pos = bot.entity.position
     return `
@@ -58,6 +69,23 @@ async function getEnvironment() {
     Food: ${bot.food},
     Time: ${bot.time.timeOfDay}
     `
+}
+
+function getSkillList(skills) {
+    return Object.values(skills).map(skill => ({
+        name: skill.name,
+        description: skill.description,
+        parameters: skill.parameters
+    }))
+}
+
+function getShortTermMemory() {
+    const memory = fs.readFileSync('shortTermMemory.txt', 'utf8')
+    return memory
+}
+
+function updateShortTermMemory(eventTime, eventText) {
+  fs.appendFileSync('shortTermMemory.txt', `\n${eventTime}: ${eventText}`)
 }
 
 async function executeAction(action) {
@@ -220,36 +248,22 @@ bot.on('chat', async (username, message) => {
 setInterval(async () => {
     if (!automationEnabled) return
     const decision = await askAI(`
-    You are a Minecraft survival bot.
-
-    Goal:
-    ${GOAL}
-
-    Rules:
-    - Be practical
-    - Focus on survival
-    - Take one step at a time
+    Personality:
+    ${getPersonality()}
 
     Recent memory:
-    ${memory.join('\n')}
+    ${getShortTermMemory()}
 
-    Available actions:
-    - CHOP_TREE
-    - CRAFT_PLANKS
-    - CRAFT_TABLE
-    - PLACE_TABLE
-    - EXPLORE
+    Available skills:
+    ${JSON.stringify(getSkillList(skills))}
 
-    Respond EXACTLY like this using only available actions:
+    Respond EXACTLY like this using a combination of available skills to perform a fluid action that gets you closer to achieving the goal.:
     THOUGHT: ...
-    ACTION: ...
-
-    Environment:
-    ${getEnvironment()}
+    ACTIONS: goTo(x, y, z)
     `)
 
     console.log("AI Decision: \n", decision)
-    addMemory(decision)
+    updateShortTermMemory(bot.time.timeOfDay, decision)
     const action = parseAction(decision)
 
     executeAction(action)

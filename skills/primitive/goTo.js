@@ -1,8 +1,17 @@
-module.exports = async function goTo(bot, position) {
-  const { goals } = require('mineflayer-pathfinder')
+module.exports = {
+  name: "goTo",
+  description: "Move the bot to a specific (x, y, z) position",
 
-  const goal = new goals.GoalBlock(position.x, position.y, position.z)
-  await bot.pathfinder.goto(goal)
+  parameters: {
+    x: "number",
+    y: "number",
+    z: "number"
+  },
 
-  return true
+  execute: async (bot, { x, y, z }) => {
+    const { goals } = require('mineflayer-pathfinder')
+    const goal = new goals.GoalBlock(x, y, z)
+    await bot.pathfinder.goto(goal)
+    return true
+  }
 }
