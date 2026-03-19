@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "mineflayer": "^4.35.0",
+    "mineflayer-collectblock": "^1.6.0",
+    "mineflayer-pathfinder": "^2.4.5",
+    "mineflayer-tool": "^1.2.0",
+    "node-fetch": "^3.3.2"
+  }
+}
