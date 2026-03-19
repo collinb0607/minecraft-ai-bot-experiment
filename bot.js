@@ -6,7 +6,7 @@ const fs = require('fs')
 const loadSkills = require('./lib/loader')
 const skills = loadSkills(__dirname + '/skills')
 
-console.log(Date.now() + ': Starting Steve_Bot...')
+console.log(new Date().toLocaleString() + ': Starting Steve_Bot...')
 const bot = mineflayer.createBot({
   host: '67.84.155.12', // or your server IP
   port: 25566,
@@ -14,19 +14,19 @@ const bot = mineflayer.createBot({
 })
 
 bot.on('spawn', () => {
-    console.log(Date.now() + ': Loading plugins...')
+    console.log(new Date().toLocaleString() + ': Loading plugins...')
     bot.loadPlugin(pathfinder)
     bot.loadPlugin(collectBlock)
     
-    console.log(Date.now() + ': Registering skills...')
+    console.log(new Date().toLocaleString() + ': Registering skills...')
     bot.skills = {}
-    for (const [name, fn] of Object.entries(skills)) {
-    bot.skills[name] = (...args) => fn(bot, ...args)
+    for (const [name, skill] of Object.entries(skills)) {
+        bot.skills[name] = (args = {}) => skill.execute(bot, args)
     }
 
-    console.log(Date.now() + ': Initializing memory...')
+    console.log(new Date().toLocaleString() + ': Initializing memory...')
     fs.writeFileSync('shortTermMemory.txt', '')
-    console.log(Date.now() + ': Steve_Bot has joined the server!')
+    console.log(new Date().toLocaleString() + ': Steve_Bot has joined the server!')
 })
 
 let automationEnabled = true
