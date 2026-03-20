@@ -3,6 +3,8 @@ const { pathfinder, goals } = require('mineflayer-pathfinder')
 const collectBlock = require('mineflayer-collectblock').plugin
 const fs = require('fs')
 
+let botSpawned = false
+const maxMemories = 25
 const loadSkills = require('./lib/loader')
 const skills = loadSkills(__dirname + '/skills')
 
@@ -27,9 +29,11 @@ bot.on('spawn', () => {
     console.log(new Date().toLocaleString() + ': Initializing memory...')
     fs.writeFileSync('shortTermMemory.txt', '')
     console.log(new Date().toLocaleString() + ': Steve_Bot has joined the server!')
+    botSpawned = true
+    automationLoop() // Start the automation loop immediately after spawning
 })
 
-let automationEnabled = true
+let automationEnabled = false
 let memory = []
 
 function addMemory(event) {
@@ -52,8 +56,54 @@ async function askAI(prompt) {
 }
 
 function parseAction(text) {
-    const match = text.match(/ACTION:\s*(\w+)/)
-    return match ? match[1] : null
+    const match = text.match(/ACTION:\s*(.+)/)
+    if (!match) return []
+    
+    const actionsStr = match[1]
+    const actions = actionsStr.match(/(\w+\([^)]*\))/g) || []
+    return actions
+}
+
+async function performAction(action) {
+    const match = action.match(/(\w+)\((.*)\)/)
+    if (!match) return
+    
+    const [, functionName, argsStr] = match
+    const args = argsStr.split(',').map(arg => {
+        arg = arg.trim()
+        // Remove surrounding single or double quotes if present
+        if ((arg.startsWith('"') && arg.endsWith('"')) || (arg.startsWith("'") && arg.endsWith("'"))) {
+            arg = arg.slice(1, -1)
+        }
+        const num = parseFloat(arg)
+        return isNaN(num) ? arg : num
+    })
+    
+    if (bot.skills[functionName]) {
+        // Map args to parameter names if available
+        const skill = skills[functionName]
+        let paramObj = {}
+        if (skill && skill.parameters) {
+            const paramNames = Object.keys(skill.parameters)
+            paramObj = paramNames.reduce((obj, name, idx) => {
+                obj[name] = args[idx]
+                return obj
+            }, {})
+        } else {
+            paramObj = { args }
+        }
+        let result, success = false
+        try {
+            result = await bot.skills[functionName](paramObj)
+            success = result !== undefined ? result : true
+        } catch (err) {
+            result = err.message || err.toString()
+            success = false
+        }
+        // Append result to memory
+        updateShortTermMemory(`SKILL: ${functionName}(${Object.values(paramObj).join(", ")}) RESULT: ${success} DETAILS: ${result}`)
+        return result
+    }
 }
 
 function getPersonality() {
@@ -84,125 +134,17 @@ function getShortTermMemory() {
     return memory
 }
 
-function updateShortTermMemory(eventTime, eventText) {
-  fs.appendFileSync('shortTermMemory.txt', `\n${eventTime}: ${eventText}`)
-}
-
-async function executeAction(action) {
-    switch (action) {
-        case "CHOP_TREE":
-        bot.chat("Getting wood!")
-        await chopTree()
-        break
-
-        case "CRAFT_PLANKS":
-        bot.chat("Crafting planks!")
-        await craftPlanks()
-        break
-
-        case "CRAFT_TABLE":
-        bot.chat("Crafting a crafting table!")
-        await craftCraftingTable()
-        break
-
-        case "PLACE_TABLE":
-        bot.chat("Placing the crafting table!")
-        await placeCraftingTable()
-        break
-
-        case "EXPLORE":
-        bot.chat("Exploring...")
-        wander()
-        break
-
-        default:
-        bot.chat("Thinking...")
-  }
-}
-
-async function chopTree() {
-    const block = bot.findBlock({
-        matching: (b) => b.name.includes('log'),
-        maxDistance: 32
-    })
-
-    if (!block) {
-        console.log("Steve_Bot: No tree found nearby.")
-        return
+function updateShortTermMemory(eventText) {
+    const filePath = 'shortTermMemory.txt'
+    let lines = []
+    if (fs.existsSync(filePath)) {
+        lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/)
     }
-
-    try { await bot.collectBlock.collect(block) } 
-    catch { console.log("Steve_Bot: Failed to chop tree.") }
-}
-
-async function craftPlanks() {
-    const log = bot.inventory.items().find(i => i.name.includes('log'))
-
-    if (!log) {
-        bot.chat("I need logs first.")
-        return
+    if (lines.length > maxMemories*4) {
+        lines = lines.slice(4) // Remove the top 4 lines
+        fs.writeFileSync(filePath, lines.join('\n'))
     }
-
-    const plankRecipe = bot.recipesFor(
-        bot.registry.itemsByName.oak_planks.id,
-        null,
-        1,
-        null
-    )[0]
-
-    if (!plankRecipe) {
-        bot.chat("I don't know how to make planks.")
-        return
-    }
-
-    await bot.craft(plankRecipe, 1, null)
-    bot.chat("Made planks!")
-}
-
-async function craftCraftingTable() {
-    const recipe = bot.recipesFor(
-        bot.registry.itemsByName.crafting_table.id,
-        null,
-        1,
-        null
-    )[0]
-
-    if (!recipe) {
-        bot.chat("I can't craft a table yet.")
-        return
-    }
-
-    await bot.craft(recipe, 1, null)
-    bot.chat("Crafted a crafting table!")
-}
-
-async function placeCraftingTable() {
-    const table = bot.inventory.items().find(i => i.name === 'crafting_table')
-
-    if (!table) {
-        bot.chat("No crafting table to place.")
-        return
-    }
-
-    const blockBelow = bot.blockAt(bot.entity.position.offset(0, -1, 0))
-
-    await bot.equip(table, 'hand')
-    await bot.placeBlock(blockBelow, { x: 0, y: 1, z: 0 })
-
-    bot.chat("Placed crafting table!")
-}
-
-async function wander() {
-  const x = bot.entity.position.x + (Math.random() * 20 - 10)
-  const z = bot.entity.position.z + (Math.random() * 20 - 10)
-
-  const goal = new goals.GoalBlock(x, bot.entity.position.y, z)
-  bot.pathfinder.setGoal(goal)
-}
-
-async function getItemCount(name) {
-  const item = bot.inventory.items().find(i => i.name.includes(name))
-  return item ? item.count : 0
+    fs.appendFileSync(filePath, `\nTime: ${bot.time.timeOfDay}: ${eventText}`)
 }
 
 bot.on('chat', async (username, message) => {
@@ -224,28 +166,45 @@ bot.on('chat', async (username, message) => {
             }
         }if (message.toLowerCase().trim() === '-automate') {
             automationEnabled = !automationEnabled
+            automationLoop() // Start the loop immediately when enabling
             bot.chat(`Automation ${automationEnabled ? 'enabled' : 'disabled'}!`)
             return
         }
         const reply = await askAI(
-            `You are a Minecraft bot. If the player tells you to get wood, respond EXACTLY with: ACTION: CHOP_TREE Otherwise, respond normally.\n
+            `Personality:
+            ${getPersonality()}
+
+            Recent memory:
+            ${getShortTermMemory()}
+
+            Available skills:
+            ${JSON.stringify(getSkillList(skills))}
+            
             Environment:${getEnvironment()}\n
+
+            Reply to the player's message in a concise sentence. Then, if and only if the message contains an explicit request of you, respond with this format:
+            
+            Thought: ... (your thought process in understanding the message)
+            ACTION: skillName(param1, param2)
+
+            
+
             Player said: ${message}`
         )
-        if (reply.includes('ACTION: CHOP_TREE')) {
-            bot.chat("I'm on it!")
-            chopTree()
-            console.log(`Player said: ${message}, Bot replied: ${reply}`)
-            return
-        } 
-        console.log(`Player said: ${message}, Bot replied: ${reply}`)
         bot.chat(reply)
+        const action = parseAction(reply)
+        if (action.length !== 0){
+            for (const act of action) {
+                await performAction(act)
+                console.log(`Performed action: ${act}`)
+            }
+        }
     } catch (error) {
         console.error('Error processing chat message:', error)
     }
 })
 
-setInterval(async () => {
+async function automationLoop(){
     if (!automationEnabled) return
     const decision = await askAI(`
     Personality:
@@ -257,14 +216,18 @@ setInterval(async () => {
     Available skills:
     ${JSON.stringify(getSkillList(skills))}
 
-    Respond EXACTLY like this using a combination of available skills to perform a fluid action that gets you closer to achieving the goal.:
+    Respond EXACTLY like this using a single skill to perform an action that progresses toward the goal:
     THOUGHT: ...
-    ACTIONS: goTo(x, y, z)
+    ACTION: goTo(x, y, z)
     `)
 
     console.log("AI Decision: \n", decision)
-    updateShortTermMemory(bot.time.timeOfDay, decision)
+    updateShortTermMemory(decision)
     const action = parseAction(decision)
-
-    executeAction(action)
-}, 10000)
+    for (const act of action) {
+        await performAction(act)
+        console.log(`Performed action: ${act}`)
+    }
+    // Call itself again after finishing
+    setTimeout(automationLoop, 2000); // Optional delay between actions
+}

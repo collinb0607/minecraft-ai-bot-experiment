@@ -1,6 +1,6 @@
 module.exports = {
   name: "goTo",
-  description: "Move the bot to a specific (x, y, z) position",
+  description: "Move the bot to a specific (x, y, z) position. This is only to move towards an interesting location, not to wander. Example: goTo(10, 64, -5)",
 
   parameters: {
     x: "number",
