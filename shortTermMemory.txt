@@ -1,3 +1,0 @@
-
-Time: 12313: SKILL: craftItem(oak_planks, 1) RESULT: false DETAILS: TypeError: Cannot read properties of undefined (reading '0')
-Time: 1120: SKILL: getItemCount(oak_planks) RESULT: 0 DETAILS: 0

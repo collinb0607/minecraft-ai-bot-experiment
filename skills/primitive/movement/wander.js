@@ -8,6 +8,6 @@ module.exports = {
     const x = bot.entity.position.x + (Math.random() * 20 - 10)
     const z = bot.entity.position.z + (Math.random() * 20 - 10)
     
-    bot.skill('goTo', { x, y: bot.entity.position.y, z })
+    await bot.skills['goTo']({ x, y: bot.entity.position.y, z })
   }
 }

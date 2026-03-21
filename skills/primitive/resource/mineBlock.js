@@ -13,7 +13,8 @@ module.exports = {
       maxDistance: 10,
       count: count
     })
-    if (!blocks.length) return `No blocks of type '${blockName}' found.`
+    await bot.skills['goTo']({ x: blocks[0].x, y: blocks[0].y, z: blocks[0].z })
+    if (!blocks.length) throw new Error(`No blocks of type '${blockName}' found.`)
     let mined = 0
     for (const pos of blocks) {
       const block = bot.blockAt(pos)
@@ -22,9 +23,11 @@ module.exports = {
         await bot.dig(block)
         mined++
       } catch (err) {
-        return `Failed to mine block at ${pos.x},${pos.y},${pos.z}: ${err.message}`
+        throw new Error(`Failed to mine block at ${pos.x},${pos.y},${pos.z}: ${err.message}`)
       }
     }
+    await bot.waitForTicks(20) // Wait a moment for drops to appear
+    await bot.skills['collectDrops']()
     return `Mined ${mined} block(s) of type '${blockName}'.`
   }
 }

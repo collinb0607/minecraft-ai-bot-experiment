@@ -6,7 +6,7 @@ module.exports = {
 
   execute: async (bot, {}) => {
     const items = Object.values(bot.entities)
-    .filter(e => e.objectType === 'Item')
+    .filter(e => e.displayName === 'Item')
 
     for (const item of items) {
         await bot.pathfinder.goto(
